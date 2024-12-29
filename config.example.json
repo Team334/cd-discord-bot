@@ -1,0 +1,10 @@
+{
+    "token": "YOUR_DISCORD_BOT_TOKEN",
+    "channel_id": "YOUR_DISCORD_CHANNEL_ID",
+    "triggers": {
+        "keywords": ["limelight", "photovision", "ctre", "Pheonix", "wpilib"],
+        "authors": ["Jacob_C", "Peter_Johnson"],
+        "refresh_rate": 15000
+    },
+    "output_file": "persist.json"
+}

@@ -1,0 +1,16 @@
+# Python
+__pycache__
+venv
+
+# Pycharm
+.idea
+
+# Env
+.env
+config.json
+
+# Visual Studio Code
+.vscode
+
+# JSON
+persist.json
