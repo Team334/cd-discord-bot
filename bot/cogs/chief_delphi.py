@@ -63,7 +63,7 @@ class ChiefDelphi(commands.Cog):
                         ):
                             embed.set_thumbnail(url=img_match.group(1))
 
-                    await channel.send(content=f"Post found with **{matched_triggers[0]["matches"][0]}**", embed=embed)
+                    await channel.send(content=f"Post found with **{matched_triggers[0]['matches'][0]}**", embed=embed)
 
         except Exception as e:
             print(f"Error checking posts: {e}")
