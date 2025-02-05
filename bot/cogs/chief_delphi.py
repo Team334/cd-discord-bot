@@ -2,7 +2,7 @@ from discord.ext import tasks
 import discord
 from discord.ext import commands
 from discord import app_commands
-from ..utils.api import ChiefDelphiAPI
+from ..utils import ChiefDelphiAPI
 from typing import Optional, Literal
 import json
 from pathlib import Path
@@ -66,7 +66,7 @@ class ChiefDelphi(commands.Cog):
                     await channel.send(content=f"Post found with **{matched_triggers[0]['matches'][0]}**", embed=embed)
 
         except Exception as e:
-            print(f"Error checking posts: {e}")
+            raise e
 
     @commands.hybrid_command(name="search")
     @app_commands.describe(
@@ -127,69 +127,123 @@ class ChiefDelphi(commands.Cog):
         config_path = Path('config.json')
         with config_path.open('w') as f:
             json.dump(self.bot.config, f, indent=4)
-
-    @commands.command(name="sync_slash")
-    @commands.has_permissions(administrator=True)
-    async def sync_slash(self, ctx: commands.Context):
-        await self.bot.tree.sync()
-        await ctx.send("Slash commands synced!")
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for messages containing #post_id and respond with the post embed."""
-        # Ignore messages from bots (including self)
-        if message.author.bot:
-            return
-
-        # Look for #number pattern
-        import re
-        if matches := re.findall(r'#(\d+)', message.content):
-            print(f"Found post IDs in message: {matches}")  # Debug print
-            for post_id in matches[:3]:  # Limit to first 3 matches to prevent spam
-                try:
-                    post = await self.cd_api.get_post(post_id)
-                    if not post:
-                        print(f"No post found for ID: {post_id}")  # Debug print
-                        continue
-
-                    # Clean up HTML tags from preview
-                    preview = re.sub(r'<[^>]+>', '', post['preview'])
-                    preview = re.sub(r'\s+', ' ', preview).strip()
-
-                    # Create embed
-                    embed = discord.Embed(
-                        title=post['title'],
-                        url=post['thread_url'],
-                        description=(
-                            f"{preview[:1800]}..."
-                            if len(preview) > 1800
-                            else preview
-                        ),
-                        color=discord.Color.blue(),
-                    )
-
-                    embed.add_field(name="Author", value=post['author'], inline=True)
-                    embed.add_field(name="Post ID", value=post['id'], inline=True)
-
-                    # Check for image in preview
-                    if '<img' in post['preview']:
-                        if img_match := re.search(
-                            r'src="([^"]+)"', post['preview']
-                        ):
-                            embed.set_thumbnail(url=img_match.group(1))
-
-                    await message.channel.send(embed=embed)
-                    print(f"Sent embed for post ID: {post_id}")  # Debug print
-
-                except Exception as e:
-                    print(f"Error fetching post {post_id}: {e}")
-
+  
     @commands.command(name="sync")
     @commands.has_permissions(administrator=True)
     async def sync(self, ctx: commands.Context):
         """Sync the bot's commands with Discord."""
         await self.bot.tree.sync()
         await ctx.send("Commands synced!")
+
+    @cd.group(name="config")
+    @commands.has_permissions(administrator=True)
+    async def cd_config(self, ctx: commands.Context):
+        """Configure bot settings."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Available commands: `channel`, `refresh`")
+
+    @cd_config.command(name="channel")
+    @commands.has_permissions(administrator=True)
+    async def set_channel(self, ctx: commands.Context, channel: discord.TextChannel):
+        """Set the notification channel."""
+        self.bot.config['channel_id'] = str(channel.id)
+        self._save_config()
+        await ctx.send(f"Notification channel set to {channel.mention}")
+
+    @cd_config.command(name="refresh")
+    @commands.has_permissions(administrator=True)
+    async def set_refresh(self, ctx: commands.Context, seconds: int):
+        """Set the refresh rate in seconds."""
+        if seconds < 5:
+            await ctx.send("Refresh rate must be at least 5 seconds")
+            return
+        
+        self.bot.config['triggers']['refresh_rate'] = seconds * 1000  # Convert to milliseconds
+        self._save_config()
+        
+        # Restart the check_posts task with new refresh rate
+        self.check_posts.cancel()
+        self.check_posts.change_interval(seconds=seconds)
+        self.check_posts.start()
+        
+        await ctx.send(f"Refresh rate set to {seconds} seconds")
+
+    @cd.group(name="trigger")
+    @commands.has_permissions(administrator=True)
+    async def cd_trigger(self, ctx: commands.Context):
+        """Manage notification triggers."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Available commands: `add`, `remove`, `list`")
+
+    @cd_trigger.command(name="add")
+    @commands.has_permissions(administrator=True)
+    @app_commands.describe(
+        trigger_type="Type of trigger to add",
+        value="Keyword or author name to add"
+    )
+    async def add_trigger(
+        self, 
+        ctx: commands.Context, 
+        trigger_type: Literal["keyword", "author"],
+        value: str
+    ):
+        """Add a keyword or author trigger."""
+        key = "keywords" if trigger_type == "keyword" else "authors"
+        
+        if value in self.bot.config['triggers'][key]:
+            await ctx.send(f"{trigger_type.title()} '{value}' already exists")
+            return
+            
+        self.bot.config['triggers'][key].append(value)
+        self._save_config()
+        await ctx.send(f"Added {trigger_type} trigger: {value}")
+
+    @cd_trigger.command(name="remove")
+    @commands.has_permissions(administrator=True)
+    @app_commands.describe(
+        trigger_type="Type of trigger to remove",
+        value="Keyword or author name to remove"
+    )
+    async def remove_trigger(
+        self, 
+        ctx: commands.Context, 
+        trigger_type: Literal["keyword", "author"],
+        value: str
+    ):
+        """Remove a keyword or author trigger."""
+        key = "keywords" if trigger_type == "keyword" else "authors"
+        
+        if value not in self.bot.config['triggers'][key]:
+            await ctx.send(f"{trigger_type.title()} '{value}' not found")
+            return
+            
+        self.bot.config['triggers'][key].remove(value)
+        self._save_config()
+        await ctx.send(f"Removed {trigger_type} trigger: {value}")
+
+    @cd_trigger.command(name="list")
+    async def list_triggers(self, ctx: commands.Context):
+        """List all current triggers."""
+        embed = discord.Embed(
+            title="Current Triggers",
+            color=discord.Color.blue()
+        )
+        
+        keywords = self.bot.config['triggers']['keywords']
+        authors = self.bot.config['triggers']['authors']
+        
+        embed.add_field(
+            name="Keywords",
+            value="\n".join(keywords) if keywords else "None",
+            inline=False
+        )
+        embed.add_field(
+            name="Authors",
+            value="\n".join(authors) if authors else "None",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
 
 
 async def setup(bot):

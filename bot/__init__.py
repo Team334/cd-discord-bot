@@ -16,7 +16,8 @@ from typing import Optional, Mapping
 load_dotenv()
 
 __initial_extension__ = [
-    "bot.cogs.chief_delphi"
+    "bot.cogs.chief_delphi",
+    "bot.cogs.bths"
 ]
 
 __utils_extension__ = [
@@ -165,21 +166,21 @@ class Bot(commands.AutoShardedBot):
             if self._session:
                 await self._session.close()
 
-    async def on_command_error(self, ctx, error):
-        with contextlib.suppress(AttributeError):
-            error = error.original
-        if isinstance(error, commands.CommandNotFound):
-            await ctx.send("Command not found. Use `cd!help` for available commands.")
-        else:
-            owner = await self.fetch_user(self.owner_id) if self.owner_id else None
-            if owner:
-                embed = Embed(
-                    title=f"Error in Command: `{ctx.command}`",
-                    description=f"```py\n{''.join(format_exception(type(error), error, error.__traceback__))}```",
-                    color=discord.Color.red()
-                )
-                await owner.send(embed=embed)
-            await ctx.send("An unexpected error occurred.")
+    # async def on_command_error(self, ctx, error):
+    #     with contextlib.suppress(AttributeError):
+    #         error = error.original
+    #     if isinstance(error, commands.CommandNotFound):
+    #         await ctx.send("Command not found. Use `cd!help` for available commands.")
+    #     else:
+    #         owner = await self.fetch_user(self.owner_id) if self.owner_id else None
+    #         if owner:
+    #             embed = Embed(
+    #                 title=f"Error in Command: `{ctx.command}`",
+    #                 description=f"```py\n{''.join(format_exception(type(error), error, error.__traceback__))}```",
+    #                 color=discord.Color.red()
+    #             )
+    #             await owner.send(embed=embed)
+    #         await ctx.send("An unexpected error occurred.")
 
     async def close(self) -> None:
         if self._session:

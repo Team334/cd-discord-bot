@@ -31,8 +31,7 @@ class ChiefDelphiAPI:
         async with aiohttp.ClientSession() as session:
             async with session.get(CD_LATEST_URL) as response:
                 if response.status != 200:
-                    print(f"Error: Status code {response.status}")
-                    return []
+                    raise Exception("Failed to fetch recent posts")
                 
                 content = await response.text()
                 feed = feedparser.parse(BytesIO(content.encode('utf-8')))
@@ -106,8 +105,7 @@ class ChiefDelphiAPI:
             
             async with session.get(url, headers=headers) as response:
                 if response.status != 200:
-                    print(f"Error: Status code {response.status}")
-                    return None
+                    raise Exception("Failed to fetch post")
                 
                 content = await response.text()
                 feed = feedparser.parse(BytesIO(content.encode('utf-8')))
@@ -135,8 +133,7 @@ class ChiefDelphiAPI:
         async with aiohttp.ClientSession() as session:
             async with session.get(CD_LATEST_URL) as response:
                 if response.status != 200:
-                    print(f"Error: Status code {response.status}")
-                    return []
+                    raise Exception("Failed to fetch recent posts")
 
                 content = await response.text()
                 feed = feedparser.parse(BytesIO(content.encode('utf-8')))
